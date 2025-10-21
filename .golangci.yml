@@ -1,0 +1,66 @@
+# Linter config for golangci-lint (2025-ready)
+
+run:
+  concurrency: 4
+  timeout: 2m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs-use-default: true
+  skip-dirs: []
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  disable-all: false
+  fast: false
+  enable:
+    - revive         # style & common issues (replacement for golint)
+    - govet          # go vet
+    - errcheck       # unchecked errors
+    - staticcheck    # powerful analysis (covers many cases of deadcode/varcheck)
+    - gosimple       # simplifications (part of staticcheck suite)
+    - goconst        # repeated strings/nums as consts
+    - misspell       # typos in comments/strings
+    - unconvert      # unnecessary conversions
+    - unused         # unused vars/funcs/consts
+    - unparam        # unused params
+    - ineffassign    # ineffectual assignments
+    - gofmt          # formatting
+    - gocritic       # extra checks (safe defaults)
+
+  disable:
+    # put explicit disables here if something annoys you
+    # - lll
+    # - funlen
+    # - wsl
+    # - gochecknoglobals
+    # - gochecknoinits
+
+linters-settings:
+  revive:
+    severity: warning
+    rules:
+      - name: indent-error-flow
+      - name: empty-lines
+      - name: if-return
+      - name: var-naming
+      - name: receiver-naming
+      - name: package-comments
+        severity: error
+        disabled: true   # enable if you want package doc comments required
+  misspell:
+    locale: US
+  gofmt:
+    simplify: true
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - opinionated
+    disabled-checks:
+      - unnecessaryBlock
