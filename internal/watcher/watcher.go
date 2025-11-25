@@ -43,6 +43,13 @@ var (
 // All fatal exits are replaced by returning errors. The outer main()
 // decides how to exit.
 func Run(ctxParent context.Context, fp *FlagParam, cp *ConnectionString) error {
+	// Validate input parameters
+	if fp == nil {
+		return errors.New("FlagParam cannot be nil")
+	}
+	if cp == nil {
+		return errors.New("ConnectionString cannot be nil")
+	}
 	// Keep original globals to avoid refactoring the rest of the code.
 	flagParam = *fp
 	connParam = *cp
@@ -61,6 +68,9 @@ func Run(ctxParent context.Context, fp *FlagParam, cp *ConnectionString) error {
 	}
 
 	// 3) parallel processing limited by -j
+	if len(dbList) == 0 {
+		return fmt.Errorf("no databases to process")
+	}
 	sem := semaphore.NewWeighted(int64(flagParam.jobs))
 	for _, name := range dbList {
 		if err := sem.Acquire(ctxParent, 1); err != nil {
@@ -301,7 +311,8 @@ func processDB(parentCtx context.Context, dbname string) error {
 // ParseFlags is your former processingFlag() but:
 // 1) accepts `build` to print on -version;
 // 2) returns FlagParam and ConnectionString to avoid fatal exits in library code.
-func ParseFlags(build string) (*FlagParam, *ConnectionString) {
+// Returns error if flag parsing fails or required flags are missing.
+func ParseFlags(build string) (*FlagParam, *ConnectionString, error) {
 	version := flag.Bool("version", false, "print current version")
 	connPtr := flag.String("conn", "user=postgres host=127.0.0.1 port=5435", "PostgreSQL conn string (libpq format)")
 	pgTimeout := flag.Duration("pg-timeout", 5*time.Second, "Global timeout for PostgreSQL operations (connect + query)")
@@ -323,7 +334,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString) {
 		os.Exit(0)
 	}
 	if *dbnamePtr == "" {
-		log.Fatalln("ERROR: -db-name must be specified (use 'all' or list).")
+		return nil, nil, errors.New("ERROR: -db-name must be specified (use 'all' or list)")
 	}
 	flagParam.datname = strings.Split(*dbnamePtr, ",")
 	connParam.connstr = *connPtr
@@ -342,7 +353,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString) {
 	}
 
 	if (*sqlPtr == "" && *sqlfilePtr == "") || (*sqlPtr != "" && *sqlfilePtr != "") {
-		log.Fatalln("ERROR: use either -sql-cmd or -sql-file (exactly one).")
+		return nil, nil, errors.New("ERROR: use either -sql-cmd or -sql-file (exactly one)")
 	}
 	if *sqlPtr != "" {
 		if *SQLSpliter != "" {
@@ -354,7 +365,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString) {
 	if *sqlfilePtr != "" {
 		content, err := os.ReadFile(*sqlfilePtr)
 		if err != nil {
-			log.Fatal(err)
+			return nil, nil, fmt.Errorf("failed to read SQL file: %w", err)
 		}
 		sqlText := string(content)
 		if *SQLSpliter != "" {
@@ -377,7 +388,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString) {
 	}
 	flagParam.jobs = *jobsPtr
 
-	return &flagParam, &connParam
+	return &flagParam, &connParam, nil
 }
 
 // closeConn closes connection with its own timeout

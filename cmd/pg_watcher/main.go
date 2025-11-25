@@ -16,11 +16,15 @@ var build = "dev1"
 
 func main() {
 	// Parse CLI flags (includes -version printing using `build`)
-	fp, cp := watcher.ParseFlags(build)
+	fp, cp, err := watcher.ParseFlags(build)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// Run the tool
 	if err := watcher.Run(context.Background(), fp, cp); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(1)	
 	}
 }

@@ -1,0 +1,38 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+
+  # Define the VM for 'PostgresDB'
+  config.vm.define "PostgresDB" do |pg|
+    # Box configuration (ARM-based Ubuntu)
+    pg.vm.box = "bento/ubuntu-24.04"
+    pg.vm.box_download_insecure = true
+
+    # Networking setup (forwarded ports)
+    pg.vm.network "forwarded_port", guest: 5432, host: 5440
+    pg.vm.network "forwarded_port", guest: 22, host: 2240, id: "ssh"
+
+    # Synced folders
+    pg.vm.synced_folder "../", "/vagrant"
+    pg.vm.synced_folder "/Users/maratbogatyrev/Documents/repo", "/repos"
+
+    # Provider-specific settings for VirtualBox
+    pg.vm.provider "virtualbox" do |vb|
+      vb.name = "PostgresDB"
+      vb.memory = 3072        # 3 GB RAM
+      vb.cpus = 3             # 3 CPU
+      vb.gui = true           # enable GUI if needed
+
+      # Network tweaks (optional)
+      vb.customize ["modifyvm", :id, "--nictype1", "virtio"] # faster NIC
+      vb.customize ["modifyvm", :id, "--ioapic", "on"]
+      vb.customize ["modifyvm", :id, "--vram", "16"]
+
+    end
+
+    # Provisioning script (if applicable)
+    pg.vm.provision "shell", path: "provisioning.sh"
+  end
+
+end

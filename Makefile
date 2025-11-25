@@ -17,7 +17,7 @@ CGO_ENABLED ?= 0
 VERBOSE     ?=
 
 # ---- Tasks ------------------------------------------------------------------
-.PHONY: all build install test lint clean vars run tidy
+.PHONY: all build install test lint clean vars run tidy vagrant_up vagrant_destroy
 
 all: lint test build ## Run linter, tests, then build
 
@@ -35,6 +35,22 @@ test: ## Run tests
 	@echo "==> tests"
 	@go test -race -coverprofile=coverage.out ./...
 	@echo "==> coverage written to coverage.out"
+
+vagrant_up:
+	@echo "Arch: $(ARCH) -> using $(VAGRANTFILE)"
+	@cd Vagrant/PostgresDB && \
+		$(VAGRANT_ENV) vagrant up && \
+		$(VAGRANT_ENV) vagrant provision && \
+
+vagrant_destroy:
+	@ARCH=$$(uname -m); \
+	if [[ "$$ARCH" == "arm64" ]]; then \
+		export VAGRANT_VAGRANTFILE="Vagrantfile_MAC_ARM"; \
+	else \
+		export VAGRANT_VAGRANTFILE="Vagrantfile_MAC_INTEL"; \
+	fi; \
+	cd Vagrant/PostgresDB && \
+	vagrant destroy -f
 
 lint: ## Run golangci-lint
 	@echo "==> lint"

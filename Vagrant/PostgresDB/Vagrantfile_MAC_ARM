@@ -1,0 +1,46 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+
+  # Define the VM for 'PostgresDB'
+  config.vm.define "PostgresDB" do |pg|
+    # Box configuration (ARM-based Ubuntu 24.04)
+    pg.vm.box = "bytesguy/ubuntu-server-24.04-arm64"
+    pg.vm.box_version = "1.0.0"
+    pg.vm.boot_timeout = 900
+    pg.vm.box_download_insecure = false  # можно оставить true, если HTTPS ругался
+
+    # Networking setup (forwarded ports)
+    pg.vm.network "forwarded_port", guest: 5432, host: 5440
+    pg.vm.network "forwarded_port", guest: 22, host: 2240, id: "ssh"
+
+    # Synced folders
+    pg.vm.synced_folder "../", "/vagrant"
+    pg.vm.synced_folder "/Users/maratbogatyrev/Documents/repo", "/repos"
+
+    # Provider-specific settings for VMware Fusion
+    pg.vm.provider "vmware_desktop" do |v|
+      v.vmx["memsize"]  = "3072"  # 3 GB RAM
+      v.vmx["numvcpus"] = "3"     # 3 CPU
+
+      # Set the network adapter to vmxnet3 (стабильный и быстрый)
+      v.vmx["ethernet0.virtualdev"]     = "vmxnet3"
+      v.vmx["ethernet0.pcislotnumber"]  = "160"  # фиксим предупреждение Vagrant
+
+      # Disk settings
+      v.vmx["scsi0:0.present"]   = "TRUE"
+      v.vmx["scsi0:0.fileName"]  = "disk.vmdk"
+      v.vmx["scsi0:0.capacity"]  = "51200"  # 50 GB (в мегабайтах)
+      v.vmx["scsi0:0.deviceType"] = "scsi-hardDisk"
+
+      # Enable GUI for debug (можно отключить после)
+      v.gui = true
+      v.linked_clone = false
+    end
+
+    # Provisioning script (если нужно)
+    pg.vm.provision "shell", path: "provisioning.sh"
+  end
+
+end
