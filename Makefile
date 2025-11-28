@@ -17,9 +17,9 @@ CGO_ENABLED ?= 0
 VERBOSE     ?=
 
 # ---- Tasks ------------------------------------------------------------------
-.PHONY: all build install test lint clean vars run tidy vagrant_up vagrant_destroy
+.PHONY: all build install test test_integration test_all lint clean vars run tidy vagrant_up vagrant_destroy test_build
 
-all: lint test build ## Run linter, tests, then build
+all: lint test_all build ## Run linter, all tests, then build
 
 build: ## Build package
 	@mkdir -p "$(BIN)"
@@ -31,10 +31,35 @@ install: ## go install into GOBIN/GOPATH/bin
 	@echo "==> go install (version: $(RELEASE))"
 	@CGO_ENABLED=$(CGO_ENABLED) go install -ldflags "$(LDFLAGS)" ./cmd/pg_watcher
 
-test: ## Run tests
-	@echo "==> tests"
+test: ## Run unit tests
+	@echo "==> unit tests"
 	@go test -race -coverprofile=coverage.out ./...
 	@echo "==> coverage written to coverage.out"
+
+test_integration: build ## Run integration tests (build + PostgreSQL + pg_watcher)
+	@echo "==> integration tests"
+	@echo "==> cleaning up old containers"
+	@cd docker && docker-compose down -v 2>/dev/null || true
+	@echo "==> starting PostgreSQL container"
+	@cd docker && docker-compose up -d
+	@echo "==> waiting for PostgreSQL to initialize"
+	@for i in {1..30}; do \
+		if docker exec pg_watcher_test psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
+			echo "==> PostgreSQL ready"; \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+	@echo "==> testing pg_watcher"
+	./$(BIN)/$(APP) \
+		-db-name=testdb \
+		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
+		-sql-cmd="SELECT * FROM pg_database"
+	@echo "==> stopping PostgreSQL container"
+	@cd docker && docker-compose down -v
+	@echo "==> integration tests passed"
+
+test_all: test test_integration ## Run all tests (unit + integration)
 
 vagrant_up:
 	@echo "Arch: $(ARCH) -> using $(VAGRANTFILE)"
@@ -73,3 +98,24 @@ vars: ## Print useful vars (debug)
 	@echo "RELEASE  = $(RELEASE)"
 	@echo "LDFLAGS  = $(LDFLAGS)"
 	@echo "CGO      = $(CGO_ENABLED)"
+
+test_build: build ## Build binary, start PostgreSQL, test pg_watcher, cleanup
+	@echo "==> cleaning up old containers"
+	@cd docker && docker-compose down -v 2>/dev/null || true
+	@echo "==> starting PostgreSQL container"
+	@cd docker && docker-compose up -d
+	@echo "==> waiting for PostgreSQL to initialize"
+	@for i in {1..30}; do \
+		if docker exec pg_watcher_test psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
+			echo "==> PostgreSQL ready"; \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+	@echo "==> testing pg_watcher"
+	./$(BIN)/$(APP) \
+		-db-name=testdb \
+		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
+		-sql-cmd="SELECT * FROM pg_database"
+	@echo "==> stopping PostgreSQL container"
+	@cd docker && docker-compose down -v
