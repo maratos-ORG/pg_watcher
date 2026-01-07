@@ -15,9 +15,10 @@ RELEASE   ?= $(shell git describe --tags --dirty --always 2>/dev/null || echo de
 LDFLAGS   := -s -w -X main.build=$(RELEASE)
 CGO_ENABLED ?= 0
 VERBOSE     ?=
+DOCKER_IMAGE ?= telegraf-pgwatcher
 
 # ---- Tasks ------------------------------------------------------------------
-.PHONY: all build install test test_integration test_all lint clean vars run tidy vagrant_up vagrant_destroy test_build
+.PHONY: all build install test test_integration test_all lint clean vars run tidy vagrant_up vagrant_destroy test_build docker_build
 
 all: lint test_all build ## Run linter, all tests, then build
 
@@ -54,7 +55,7 @@ test_integration: build ## Run integration tests (build + PostgreSQL + pg_watche
 	./$(BIN)/$(APP) \
 		-db-name=testdb \
 		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
-		-sql-cmd="SELECT * FROM pg_database"
+		-sql-cmd="SELECT datname, datconnlimit FROM pg_database where datname='testdb'"
 	@echo "==> stopping PostgreSQL container"
 	@cd docker && docker-compose down -v
 	@echo "==> integration tests passed"
@@ -119,3 +120,8 @@ test_build: build ## Build binary, start PostgreSQL, test pg_watcher, cleanup
 		-sql-cmd="SELECT * FROM pg_database"
 	@echo "==> stopping PostgreSQL container"
 	@cd docker && docker-compose down -v
+
+docker_build: ## Build Docker image with telegraf and pg_watcher
+	@echo "==> building Docker image $(DOCKER_IMAGE):latest (version: $(RELEASE))"
+	@docker build --build-arg VERSION=$(RELEASE) -t $(DOCKER_IMAGE):latest .
+	@echo "==> ok: $(DOCKER_IMAGE):latest"

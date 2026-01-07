@@ -1,0 +1,62 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Run integration tests
+        id: integration
+        run: |
+          set -o pipefail
+          make test_integration 2>&1 | tee integration_output.log
+
+      - name: Verify integration test output
+        run: |
+          if ! grep -q "datconnlimit" integration_output.log; then
+            echo "❌ Error: 'datconnlimit' not found in integration test output"
+            echo "Output was:"
+            cat integration_output.log
+            exit 1
+          fi
+
+          if grep -qi "error" integration_output.log && ! grep -q "PostgreSQL ready" integration_output.log; then
+            echo "❌ Error: Found errors in integration test output"
+            cat integration_output.log
+            exit 1
+          fi
+
+          echo "✅ Integration tests passed - found 'datconnlimit' in output and no errors detected"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            coverage.out
+            integration_output.log
+          retention-days: 7
