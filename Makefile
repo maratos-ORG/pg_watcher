@@ -40,9 +40,9 @@ test: ## Run unit tests
 test_integration: build ## Run integration tests (build + PostgreSQL + pg_watcher)
 	@echo "==> integration tests"
 	@echo "==> cleaning up old containers"
-	@cd docker && docker-compose down -v 2>/dev/null || true
+	@cd docker && docker compose down -v 2>/dev/null || true
 	@echo "==> starting PostgreSQL container"
-	@cd docker && docker-compose up -d
+	@cd docker && docker compose up -d
 	@echo "==> waiting for PostgreSQL to initialize"
 	@for i in {1..30}; do \
 		if docker exec pg_watcher_test psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
@@ -57,7 +57,7 @@ test_integration: build ## Run integration tests (build + PostgreSQL + pg_watche
 		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
 		-sql-cmd="SELECT datname, datconnlimit FROM pg_database where datname='testdb'"
 	@echo "==> stopping PostgreSQL container"
-	@cd docker && docker-compose down -v
+	@cd docker && docker compose down -v
 	@echo "==> integration tests passed"
 
 test_all: test test_integration ## Run all tests (unit + integration)
@@ -102,9 +102,9 @@ vars: ## Print useful vars (debug)
 
 test_build: build ## Build binary, start PostgreSQL, test pg_watcher, cleanup
 	@echo "==> cleaning up old containers"
-	@cd docker && docker-compose down -v 2>/dev/null || true
+	@cd docker && docker compose down -v 2>/dev/null || true
 	@echo "==> starting PostgreSQL container"
-	@cd docker && docker-compose up -d
+	@cd docker && docker compose up -d
 	@echo "==> waiting for PostgreSQL to initialize"
 	@for i in {1..30}; do \
 		if docker exec pg_watcher_test psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
@@ -119,7 +119,7 @@ test_build: build ## Build binary, start PostgreSQL, test pg_watcher, cleanup
 		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
 		-sql-cmd="SELECT * FROM pg_database"
 	@echo "==> stopping PostgreSQL container"
-	@cd docker && docker-compose down -v
+	@cd docker && docker compose down -v
 
 docker_build: ## Build Docker image with telegraf and pg_watcher
 	@echo "==> building Docker image $(DOCKER_IMAGE):latest (version: $(RELEASE))"
