@@ -4,7 +4,7 @@ services:
   postgres:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: postgres/Dockerfile
     container_name: pg_watcher_test
     environment:
       POSTGRES_USER: postgres
