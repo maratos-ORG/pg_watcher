@@ -18,7 +18,7 @@ VERBOSE     ?=
 DOCKER_IMAGE ?= telegraf-pgwatcher
 
 # ---- Tasks ------------------------------------------------------------------
-.PHONY: all build install test test_integration test_all lint clean vars run tidy vagrant_up vagrant_destroy test_build docker_build
+.PHONY: all build test test_pg_watcher test_telegraf test_all lint clean vars run tidy vagrant_up vagrant_destroy docker_build
 
 all: lint test_all build ## Run linter, all tests, then build
 
@@ -28,16 +28,12 @@ build: ## Build package
 	@CGO_ENABLED=$(CGO_ENABLED) go build $(if $(VERBOSE),-v,) -ldflags "$(LDFLAGS)" -o "$(BIN)/$(APP)" "$(MAIN)"
 	@echo "==> ok: $(BIN)/$(APP)"
 
-install: ## go install into GOBIN/GOPATH/bin
-	@echo "==> go install (version: $(RELEASE))"
-	@CGO_ENABLED=$(CGO_ENABLED) go install -ldflags "$(LDFLAGS)" ./cmd/pg_watcher
-
 test: ## Run unit tests
 	@echo "==> unit tests"
 	@go test -race -coverprofile=coverage.out ./...
 	@echo "==> coverage written to coverage.out"
 
-test_integration: build ## Run integration tests (build + PostgreSQL + pg_watcher)
+test_pg_watcher: build ## Test pg_watcher only (build + PostgreSQL + pg_watcher)
 	@echo "==> integration tests"
 	@echo "==> cleaning up old containers"
 	@cd docker && docker compose -f docker-compose-pg.yml down -v 2>/dev/null || true
@@ -60,7 +56,29 @@ test_integration: build ## Run integration tests (build + PostgreSQL + pg_watche
 	@cd docker && docker compose -f docker-compose-pg.yml down -v
 	@echo "==> integration tests passed"
 
-test_all: test test_integration ## Run all tests (unit + integration)
+test_telegraf: ## Test full stack (PostgreSQL + Telegraf + pg_watcher)
+	@echo "==> full stack integration test"
+	@echo "==> cleaning up old containers"
+	@cd docker && docker compose -f docker-compose-telegraf.yml down -v 2>/dev/null || true
+	@echo "==> starting PostgreSQL + Telegraf stack"
+	@cd docker && docker compose -f docker-compose-telegraf.yml up -d
+	@echo "==> waiting for PostgreSQL to be healthy"
+	@for i in {1..30}; do \
+		if docker exec pg_watcher_postgres psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
+			echo "==> PostgreSQL ready"; \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+	@echo "==> waiting for Telegraf to collect metrics (35 seconds)"
+	@sleep 35
+	@echo "==> checking Telegraf logs for metrics"
+	@docker logs pg_watcher_telegraf --tail 20 | grep "pgwatch_" && echo "==> metrics found!" || (echo "==> ERROR: no metrics found" && exit 1)
+	@echo "==> stopping containers"
+	@cd docker && docker compose -f docker-compose-telegraf.yml down -v
+	@echo "==> full stack test passed"
+
+test_all: test test_pg_watcher test_telegraf ## Run all tests (unit + pg_watcher + telegraf)
 
 vagrant_up:
 	@echo "Arch: $(ARCH) -> using $(VAGRANTFILE)"
@@ -100,28 +118,7 @@ vars: ## Print useful vars (debug)
 	@echo "LDFLAGS  = $(LDFLAGS)"
 	@echo "CGO      = $(CGO_ENABLED)"
 
-test_build: build ## Build binary, start PostgreSQL, test pg_watcher, cleanup
-	@echo "==> cleaning up old containers"
-	@cd docker && docker compose -f docker-compose-pg.yml down -v 2>/dev/null || true
-	@echo "==> starting PostgreSQL container"
-	@cd docker && docker compose -f docker-compose-pg.yml up -d
-	@echo "==> waiting for PostgreSQL to initialize"
-	@for i in {1..30}; do \
-		if docker exec pg_watcher_test psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
-			echo "==> PostgreSQL ready"; \
-			break; \
-		fi; \
-		sleep 1; \
-	done
-	@echo "==> testing pg_watcher"
-	./$(BIN)/$(APP) \
-		-db-name=testdb \
-		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
-		-sql-cmd="SELECT * FROM pg_database"
-	@echo "==> stopping PostgreSQL container"
-	@cd docker && docker compose -f docker-compose-pg.yml down -v
-
 docker_build: ## Build Docker image with telegraf and pg_watcher
 	@echo "==> building Docker image $(DOCKER_IMAGE):latest (version: $(RELEASE))"
-	@docker build --build-arg VERSION=$(RELEASE) -t $(DOCKER_IMAGE):latest .
+	@docker build --build-arg VERSION=$(RELEASE) -f docker/telegraf-pg_watcher/Dockerfile -t $(DOCKER_IMAGE):latest .
 	@echo "==> ok: $(DOCKER_IMAGE):latest"

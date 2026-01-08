@@ -28,28 +28,28 @@ jobs:
       - name: Run unit tests
         run: make test
 
-      - name: Run integration tests
-        id: integration
+      - name: Run full stack tests
+        id: telegraf
         run: |
           set -o pipefail
-          make test_integration 2>&1 | tee integration_output.log
+          make test_telegraf 2>&1 | tee telegraf_output.log
 
-      - name: Verify integration test output
+      - name: Verify full stack test output
         run: |
-          if ! grep -q "datconnlimit" integration_output.log; then
-            echo "❌ Error: 'datconnlimit' not found in integration test output"
+          if ! grep -q "pgwatch_" telegraf_output.log; then
+            echo "❌ Error: 'pgwatch_' metrics not found in test output"
             echo "Output was:"
-            cat integration_output.log
+            cat telegraf_output.log
             exit 1
           fi
 
-          if grep -qi "error" integration_output.log && ! grep -q "PostgreSQL ready" integration_output.log; then
-            echo "❌ Error: Found errors in integration test output"
-            cat integration_output.log
+          if ! grep -q "metrics found!" telegraf_output.log; then
+            echo "❌ Error: Full stack test did not complete successfully"
+            cat telegraf_output.log
             exit 1
           fi
 
-          echo "✅ Integration tests passed - found 'datconnlimit' in output and no errors detected"
+          echo "✅ Full stack tests passed - Telegraf is collecting metrics from pg_watcher"
 
       - name: Upload test artifacts
         if: always()
@@ -58,5 +58,5 @@ jobs:
           name: test-results
           path: |
             coverage.out
-            integration_output.log
+            telegraf_output.log
           retention-days: 7

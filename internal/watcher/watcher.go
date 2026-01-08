@@ -468,7 +468,7 @@ func normalizeName(s string) string {
 	return s
 }
 
-// makeForcedLabelsSet builds a set from -labels CSV
+// makeForcedLabelsSet builds a set from -labels
 func makeForcedLabelsSet(arr []string) map[string]bool {
 	m := make(map[string]bool, len(arr))
 	for _, s := range arr {

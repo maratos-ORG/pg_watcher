@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: postgres/Dockerfile
-    container_name: pg_watcher_test
+    container_name: pg_watcher_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -29,6 +29,29 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - pg_watcher_net
+
+  telegraf:
+    build:
+      context: ..
+      dockerfile: docker/telegraf-pg_watcher/Dockerfile
+    container_name: pg_watcher_telegraf
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./telegraf-pg_watcher/config/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    environment:
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+      - HOST_ETC=/host/etc
+    networks:
+      - pg_watcher_net
 
 volumes:
   pgdata:
+
+networks:
+  pg_watcher_net:
+    driver: bridge

@@ -12,42 +12,19 @@ Binary will be created at `bin/pg_watcher`.
 
 ## Test
 
-### Run All Tests
-
 ```bash
+# Run all tests (unit + pg_watcher)
 make test_all
-```
 
-Runs both unit tests and integration tests.
-
-### Unit Tests Only
-
-```bash
+# Run unit tests only (with race detection and coverage)
 make test
+
+# Test pg_watcher only (build, start PostgreSQL, test pg_watcher, cleanup)
+make test_pg_watcher
+
+# Test full stack (PostgreSQL + Telegraf + pg_watcher)
+make test_telegraf
 ```
-
-Runs Go unit tests with race detection and coverage report.
-
-### Integration Tests Only
-
-```bash
-make test_integration
-```
-
-This will:
-1. Build the binary
-2. Start PostgreSQL 17 container with test data
-3. Run pg_watcher against test database
-4. Display Prometheus metrics output
-5. Clean up containers and volumes
-
-### Legacy Test Target
-
-```bash
-make test_build
-```
-
-Same as `make test_integration` (kept for backward compatibility).
 
 ---
 
@@ -62,10 +39,12 @@ make build
 
 Version will be embedded from git tag.
 
-### 2. Install Binary
+### 2. Deploy Binary
 
 ```bash
-make install
+# Copy binary to target location
+sudo cp bin/pg_watcher /usr/local/bin/
+sudo chmod +x /usr/local/bin/pg_watcher
 ```
 
 ### 3. Configure Telegraf
