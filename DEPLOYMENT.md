@@ -54,7 +54,7 @@ Example configuration for `/etc/telegraf/telegraf.conf`:
 ```toml
 [[inputs.exec]]
   commands = [
-    "/usr/local/bin/pg_watcher -sql-file /etc/telegraf/sql/db_stats.sql -conn 'user=monitor host=localhost port=5432' -db-name=all"
+    "/usr/local/bin/pg_watcher -sql-file /etc/telegraf/sql/db_stats.sql -conn 'user=telegraf host=localhost port=5432' -db-name=all"
   ]
   timeout = "30s"
   interval = "1m"
@@ -85,9 +85,9 @@ WHERE datname NOT IN ('template0', 'template1');
 ### 5. Create Monitoring User
 
 ```sql
-CREATE USER monitor WITH PASSWORD 'secure_password';
-GRANT CONNECT ON DATABASE postgres TO monitor;
-GRANT pg_monitor TO monitor;
+CREATE USER telegraf WITH PASSWORD 'secure_password';
+GRANT CONNECT ON DATABASE postgres TO telegraf; --Optional
+GRANT pg_monitor TO telegraf;
 ```
 
 ### 6. Test Configuration
@@ -95,7 +95,7 @@ GRANT pg_monitor TO monitor;
 ```bash
 /usr/local/bin/pg_watcher \
   -sql-file /etc/telegraf/sql/db_stats.sql \
-  -conn 'user=monitor password=secure_password host=localhost port=5432' \
+  -conn 'user=telegraf password=secure_password host=localhost port=5432' \
   -db-name=all
 ```
 
