@@ -10,7 +10,7 @@ Errors are printed to `stderr` — they can be captured by Telegraf and logged t
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| **`-conn`** | `string` | `user=postgres host=127.0.0.1 port=5435` | PostgreSQL connection string in libpq format. The tool appends `dbname=<DB>` internally. |
+| **`-conn`** | `string` | `user=telegraf host=127.0.0.1 port=5435` | PostgreSQL connection string in libpq format. The tool appends `dbname=<DB>` internally. |
 | **`-db-name`** | `string` | — | Databases to target: `all` or comma-separated list (`db1,db2,...`). If `all`, the list is resolved from `pg_database` (excluding `template0/1` and `postgres`). |
 | **`-sql-cmd`** | `string` | — | SQL text (wrap in quotes!). Mutually exclusive with `-sql-file`. |
 | **`-sql-file`** | `string` | — | Path to a file with SQL text. Mutually exclusive with `-sql-cmd`. |
@@ -43,19 +43,19 @@ Errors are printed to `stderr` — they can be captured by Telegraf and logged t
 
 ```toml
 [[inputs.exec]]
-  commands = ["/data/scripts/pg_watcher -sql-file /data/scripts/statements.sql -conn 'user=postgres port=5432' -db-name=postgres"]
+  commands = ["/data/scripts/pg_watcher -sql-file /data/scripts/statements.sql -conn 'user=telegraf port=5432' -db-name=postgres"]
   timeout = "10s"
   interval = "30m"
   data_format = "prometheus"
 
 [[inputs.exec]]
-  commands = ["/data/scripts/pg_watcher -sql-file /data/scripts/table_stats.sql -conn 'user=postgres port=5432' -db-name=all -master-only"]
+  commands = ["/data/scripts/pg_watcher -j 3 -pg-timeout=11s -sql-file /data/scripts/table_stats.sql -conn 'telegraf port=5432' -db-name=all -master-only"]
   timeout = "10s"
   interval = "30m"
   data_format = "prometheus"
 
 [[inputs.exec]]
-  commands = ["/data/scripts/pg_watcher -sql-cmd="select datname, session_time, xact_commit from pg_stat_database;" -conn 'user=postgres port=5432' -db-name=postgres"]
+  commands = ["/data/scripts/pg_watcher -sql-cmd="select datname, session_time, xact_commit from pg_stat_database;" -conn 'user=telegraf port=5432' -db-name=postgres"]
   timeout = "10s"
   interval = "1m"
   data_format = "prometheus"
@@ -67,7 +67,7 @@ Errors are printed to `stderr` — they can be captured by Telegraf and logged t
 
 ```bash
 # Get metrics from odyssey pooler 
-./pg_watcher   -db-name=console   -sql-cmd="show stats;show pools;"   -conn="user=postgres password=XXX host=10.203.97.94 port=6432 sslmode=disable"   -labels=database,user   -ignoredColumns=pool_mode,avg_req,avg_recv,avg_sent,avg_query   -SQLSpliter=";"
+./pg_watcher   -db-name=console   -sql-cmd="show stats;show pools;"   -conn="user=telegraf password=XXX host=10.203.97.94 port=6432 sslmode=disable"   -labels=database,user   -ignoredColumns=pool_mode,avg_req,avg_recv,avg_sent,avg_query   -SQLSpliter=";"
 
 # Get a metric from DB
 ./pg_watcher -db-name=testdb -conn="user=marat password=wolfik host=127.0.0.1 port=5440 sslmode=disable" -sql-cmd="select datname, session_time, xact_commit from pg_stat_database"
