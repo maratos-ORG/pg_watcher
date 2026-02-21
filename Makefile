@@ -18,7 +18,7 @@ VERBOSE     ?=
 DOCKER_IMAGE ?= telegraf-pgwatcher
 
 # ---- Tasks ------------------------------------------------------------------
-.PHONY: all build test test_pg_watcher test_telegraf test_all lint clean vars run tidy vagrant_up vagrant_destroy docker_build
+.PHONY: all build docker_build test test_pg_watcher test_telegraf test_all lint clean vars run tidy
 
 all: lint test_all build ## Run linter, all tests, then build
 
@@ -27,6 +27,11 @@ build: ## Build package
 	@echo "==> building $(BIN)/$(APP) from $(MAIN) (version: $(RELEASE))"
 	@CGO_ENABLED=$(CGO_ENABLED) go build $(if $(VERBOSE),-v,) -ldflags "$(LDFLAGS)" -o "$(BIN)/$(APP)" "$(MAIN)"
 	@echo "==> ok: $(BIN)/$(APP)"
+
+docker_build: ## Build Docker image with telegraf and pg_watcher
+	@echo "==> building Docker image $(DOCKER_IMAGE):latest (version: $(RELEASE))"
+	@docker build --build-arg VERSION=$(RELEASE) -f docker/telegraf-pg_watcher/Dockerfile -t $(DOCKER_IMAGE):latest .
+	@echo "==> ok: $(DOCKER_IMAGE):latest"
 
 test: ## Run unit tests
 	@echo "==> unit tests"
@@ -41,17 +46,29 @@ test_pg_watcher: build ## Test pg_watcher only (build + PostgreSQL + pg_watcher)
 	@cd docker && docker compose -f docker-compose-pg.yml up -d
 	@echo "==> waiting for PostgreSQL to initialize"
 	@for i in {1..30}; do \
-		if docker exec pg_watcher_test psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
-			echo "==> PostgreSQL ready"; \
+		if psql "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres" -c "SELECT 1" >/dev/null 2>&1; then \
+			echo "==> PostgreSQL ready on 127.0.0.1:5432"; \
 			break; \
+		fi; \
+		if [ $$i -eq 30 ]; then \
+			echo "==> ERROR: PostgreSQL not ready after 30 seconds"; \
+			cd docker && docker compose -f docker-compose-pg.yml down -v; \
+			exit 1; \
 		fi; \
 		sleep 1; \
 	done
 	@echo "==> testing pg_watcher"
-	./$(BIN)/$(APP) \
-		-db-name=testdb \
+	@if ./$(BIN)/$(APP) \
+		-db-name=postgres \
+		-j 1 \
 		-conn="user=postgres password=postgres host=127.0.0.1 port=5432 sslmode=disable" \
-		-sql-cmd="SELECT datname, datconnlimit FROM pg_database where datname='testdb'"
+		-sql-cmd="SELECT datname, datconnlimit FROM pg_database where datname='postgres'"; then \
+		echo "==> pg_watcher test passed"; \
+	else \
+		echo "==> ERROR: pg_watcher test failed"; \
+		cd docker && docker compose -f docker-compose-pg.yml down -v; \
+		exit 1; \
+	fi
 	@echo "==> stopping PostgreSQL container"
 	@cd docker && docker compose -f docker-compose-pg.yml down -v
 	@echo "==> integration tests passed"
@@ -64,40 +81,41 @@ test_telegraf: ## Test full stack (PostgreSQL + Telegraf + pg_watcher)
 	@cd docker && docker compose -f docker-compose-telegraf.yml up -d
 	@echo "==> waiting for PostgreSQL to be healthy"
 	@for i in {1..30}; do \
-		if docker exec pg_watcher_postgres psql -U postgres -d testdb -c "SELECT 1" >/dev/null 2>&1; then \
-			echo "==> PostgreSQL ready"; \
+		if psql "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=testdb" -c "SELECT 1" >/dev/null 2>&1; then \
+			echo "==> PostgreSQL ready on 127.0.0.1:5432"; \
 			break; \
+		fi; \
+		if [ $$i -eq 30 ]; then \
+			echo "==> ERROR: PostgreSQL not ready after 30 seconds"; \
+			cd docker && docker compose -f docker-compose-telegraf.yml down -v; \
+			exit 1; \
 		fi; \
 		sleep 1; \
 	done
 	@echo "==> waiting for Telegraf to collect metrics (35 seconds)"
 	@sleep 35
 	@echo "==> checking Telegraf logs for metrics"
-	@docker logs pg_watcher_telegraf --tail 20 | grep "pgwatch_" && echo "==> metrics found!" || (echo "==> ERROR: no metrics found" && exit 1)
+	@if docker logs pg_watcher_telegraf --tail 200 | grep "tlf_" >/dev/null 2>&1; then \
+		echo "==> metrics found!"; \
+		echo ""; \
+		echo "==> Sample metrics collected:"; \
+		docker logs pg_watcher_telegraf --tail 200 | grep "tlf_" | head -20; \
+		echo ""; \
+	else \
+		echo "==> ERROR: no metrics found"; \
+		docker logs pg_watcher_telegraf --tail 50; \
+		cd docker && docker compose -f docker-compose-telegraf.yml down -v; \
+		exit 1; \
+	fi
 	@echo "==> stopping containers"
 	@cd docker && docker compose -f docker-compose-telegraf.yml down -v
 	@echo "==> full stack test passed"
 
 test_all: test test_pg_watcher test_telegraf ## Run all tests (unit + pg_watcher + telegraf)
 
-vagrant_up:
-	@echo "Arch: $(ARCH) -> using $(VAGRANTFILE)"
-	@cd Vagrant/PostgresDB && \
-		$(VAGRANT_ENV) vagrant up && \
-		$(VAGRANT_ENV) vagrant provision && \
-
-vagrant_destroy:
-	@ARCH=$$(uname -m); \
-	if [[ "$$ARCH" == "arm64" ]]; then \
-		export VAGRANT_VAGRANTFILE="Vagrantfile_MAC_ARM"; \
-	else \
-		export VAGRANT_VAGRANTFILE="Vagrantfile_MAC_INTEL"; \
-	fi; \
-	cd Vagrant/PostgresDB && \
-	vagrant destroy -f
-
 lint: ## Run golangci-lint
 	@echo "==> lint"
+# 	@ run -c ./.golangci.yml --timeout 3m ./..golangci-lint.
 	@golangci-lint run -c ./.golangci.yml --timeout 3m ./...
 
 clean: ## Clean build artifacts
@@ -118,7 +136,3 @@ vars: ## Print useful vars (debug)
 	@echo "LDFLAGS  = $(LDFLAGS)"
 	@echo "CGO      = $(CGO_ENABLED)"
 
-docker_build: ## Build Docker image with telegraf and pg_watcher
-	@echo "==> building Docker image $(DOCKER_IMAGE):latest (version: $(RELEASE))"
-	@docker build --build-arg VERSION=$(RELEASE) -f docker/telegraf-pg_watcher/Dockerfile -t $(DOCKER_IMAGE):latest .
-	@echo "==> ok: $(DOCKER_IMAGE):latest"

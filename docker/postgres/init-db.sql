@@ -32,6 +32,22 @@ CREATE TABLE orders (
     shipped_at TIMESTAMP
 );
 
+-- Create test table with quoted identifier: "user" (with double quotes)
+-- This tests how pg_watcher handles identifiers with special characters
+CREATE TABLE "user" (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    score INTEGER DEFAULT 0
+);
+
+-- Insert test data into "user" table
+INSERT INTO "user" (name, email, score) VALUES
+    ('Test User 1', 'test1@example.com', 100),
+    ('Test User 2', 'test2@example.com', 200),
+    ('Test User 3', 'test3@example.com', 150);
+
 -- Create indexes on orders
 CREATE INDEX idx_orders_user_id ON orders(user_id);
 CREATE INDEX idx_orders_status ON orders(status);
@@ -107,10 +123,11 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
 DO $$
 BEGIN
     RAISE NOTICE 'Test database initialized successfully!';
-    RAISE NOTICE 'Created tables: users, orders';
+    RAISE NOTICE 'Created tables: users, orders, "user" (with quoted identifier)';
     RAISE NOTICE 'Created view: user_order_summary';
     RAISE NOTICE 'Created function: get_user_stats()';
-    RAISE NOTICE 'Inserted % users and % orders',
+    RAISE NOTICE 'Inserted % users, % orders, and % rows in "user" table',
         (SELECT COUNT(*) FROM users),
-        (SELECT COUNT(*) FROM orders);
+        (SELECT COUNT(*) FROM orders),
+        (SELECT COUNT(*) FROM "user");
 END $$;

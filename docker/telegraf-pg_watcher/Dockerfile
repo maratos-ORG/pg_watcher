@@ -19,9 +19,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 # ---- Stage 2: Final image with Telegraf ----
 # FROM telegraf:latest
-FROM telegraf:alpine
+# FROM telegraf:alpine
+FROM telegraf:1.37.1-alpine
 
 # Copy pg_watcher binary from builder and make it executable
 COPY --from=builder /build/pg_watcher /usr/local/bin/pg_watcher
 RUN chmod +x /usr/local/bin/pg_watcher
-
