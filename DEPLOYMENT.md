@@ -1,17 +1,36 @@
 # Deployment Guide
 
-## Build
+## GitLab CI/CD Pipeline
+
+### Automated Build & Test
+
+- **On Merge Request or master branch**: Runs tests (`make test` and `make test_telegraf`)
+- **On Git Tag**: Builds Docker image and pushes to GitLab Container Registry
+
+### Workflow
 
 ```bash
-make build
-```
+# 1. Create feature branch and push
+git checkout -b feature/my-changes
+git add .
+git commit -m "Add feature"
+git push -u origin feature/my-changes
+# → Create MR in GitLab → Tests run automatically
 
-Binary will be created at `bin/pg_watcher`.
+# 2. After MR merged, create release tag
+git checkout master
+git pull origin master
+git tag v1.0.3
+git push origin v1.0.3
+# → Docker image builds and pushes automatically as:
+#    registry.gitlab.com/M69/database/utilities/pg_watcher/telegraf-pgwatcher:v1.0.0
+#    registry.gitlab.com/M69/database/utilities/pg_watcher/telegraf-pgwatcher:latest
+```
 
 ---
 
 ## Test
-
+Some tests require Docker. You can use a completely free alternative on your laptop [rancherdesktop](https://rancherdesktop.io/).
 ```bash
 # Run all tests (unit + pg_watcher)
 make test_all
@@ -28,40 +47,8 @@ make test_telegraf
 
 ---
 
-## Production Deployment
-
-### 1. Build Release Binary
-
-```bash
-git tag v1.0.0
-make build
-```
-
-Version will be embedded from git tag.
-
-### 2. Deploy Binary
-
-```bash
-# Copy binary to target location
-sudo cp bin/pg_watcher /usr/local/bin/
-sudo chmod +x /usr/local/bin/pg_watcher
-```
-
-### 3. Configure Telegraf
-
-Example configuration for `/etc/telegraf/telegraf.conf`:
-
-```toml
-[[inputs.exec]]
-  commands = [
-    "/usr/local/bin/pg_watcher -sql-file /etc/telegraf/sql/db_stats.sql -conn 'user=telegraf host=localhost port=5432' -db-name=all"
-  ]
-  timeout = "30s"
-  interval = "1m"
-  data_format = "prometheus"
-```
-
-### 4. Create SQL Files
+## Telegraf Configuration
+### 1. Create SQL Files
 
 Example `/etc/telegraf/sql/db_stats.sql`:
 
@@ -82,30 +69,25 @@ FROM pg_stat_database
 WHERE datname NOT IN ('template0', 'template1');
 ```
 
-### 5. Create Monitoring User
+### 2. Configure Telegraf
+Example configuration for `/etc/telegraf/telegraf.conf`:
+
+```toml
+[[inputs.exec]]
+  commands = [
+    "/usr/local/bin/pg_watcher -sql-file /etc/telegraf/sql/db_stats.sql -conn 'user=telegraf host=localhost port=5432' -db-name=all"
+  ]
+  timeout = "30s"
+  interval = "1m"
+  data_format = "prometheus"
+```
+
+### 3. Create Monitoring User in DB
 
 ```sql
 CREATE USER telegraf WITH PASSWORD 'secure_password';
 GRANT CONNECT ON DATABASE postgres TO telegraf; --Optional
 GRANT pg_monitor TO telegraf;
-```
-
-### 6. Test Configuration
-
-```bash
-/usr/local/bin/pg_watcher \
-  -sql-file /etc/telegraf/sql/db_stats.sql \
-  -conn 'user=telegraf password=secure_password host=localhost port=5432' \
-  -db-name=all
-```
-
-Expected output: Prometheus-formatted metrics.
-
-### 7. Restart Telegraf
-
-```bash
-systemctl restart telegraf
-systemctl status telegraf
 ```
 
 ---

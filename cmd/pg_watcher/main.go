@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"os"
 
-	// NOTE: change this import to your real module path from go.mod
 	"github.com/maratos-ORG/pg_watcher/internal/watcher"
 )
 
 // build is injected at build time via:
 //
 //	go build -ldflags "-X main.build=$(git describe --tags --dirty --always 2>/dev/null || echo dev)"
-var build = "dev1"
+var build = "dev"
 
 func main() {
 	// Parse CLI flags (includes -version printing using `build`)
@@ -25,6 +24,6 @@ func main() {
 	// Run the tool
 	if err := watcher.Run(context.Background(), fp, cp); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)	
+		os.Exit(1)
 	}
 }

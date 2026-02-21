@@ -25,6 +25,7 @@ type FlagParam struct {
 	masterOnly      bool
 	replicaOnly     bool
 	datname         []string
+	excludeDB       map[string]bool
 	prefixMetric    string
 	jobs            int
 	pgTimeout       time.Duration
@@ -118,6 +119,10 @@ func resolveDBList(ctxParent context.Context) ([]string, error) {
 			var d string
 			if err := rows.Scan(&d); err != nil {
 				return nil, err
+			}
+			// Skip excluded databases
+			if flagParam.excludeDB != nil && flagParam.excludeDB[d] {
+				continue
 			}
 			list = append(list, d)
 		}
@@ -224,13 +229,19 @@ func processDB(parentCtx context.Context, dbname string) error {
 				if flagParam.ignoredColumns != nil {
 					_, ignored = flagParam.ignoredColumns[name]
 				}
+				var metricName string
+				if flagParam.prefixMetric != "" {
+					metricName = normalizeName(fmt.Sprintf("%s_%s", flagParam.prefixMetric, name))
+				} else {
+					metricName = normalizeName(name)
+				}
 				metas = append(metas, colMeta{
 					idx:     i,
 					name:    name,
 					ignored: ignored,
 					forced:  forced[name],
 					label:   normalizeName(name),
-					metric:  normalizeName(fmt.Sprintf("%s_%s", flagParam.prefixMetric, name)),
+					metric:  metricName,
 				})
 			}
 
@@ -269,7 +280,8 @@ func processDB(parentCtx context.Context, dbname string) error {
 						if !first {
 							lb.WriteByte(',')
 						}
-						fmt.Fprintf(&lb, `%s="%s"`, m.label, labelVal(v))
+						// fmt.Fprintf(&lb, `%s="%s"`, m.label, labelVal(v))
+						fmt.Fprintf(&lb, `%s=%#v`, m.label, labelVal(v))
 						first = false
 						continue // do not duplicate as metric
 					}
@@ -278,7 +290,8 @@ func processDB(parentCtx context.Context, dbname string) error {
 						if !first {
 							lb.WriteByte(',')
 						}
-						fmt.Fprintf(&lb, `%s="%s"`, m.label, labelVal(v))
+						// fmt.Fprintf(&lb, `%s="%s"`, m.label, labelVal(v))
+						fmt.Fprintf(&lb, `%s=%#v`, m.label, labelVal(v))
 						first = false
 						continue
 					}
@@ -317,6 +330,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString, error) {
 	connPtr := flag.String("conn", "user=postgres host=127.0.0.1 port=5435", "PostgreSQL conn string (libpq format)")
 	pgTimeout := flag.Duration("pg-timeout", 5*time.Second, "Global timeout for PostgreSQL operations (connect + query)")
 	dbnamePtr := flag.String("db-name", "", "DB name(s): 'all' or comma-separated list")
+	excludeDBPtr := flag.String("exclude-db", "", "Databases to exclude when using 'all' (comma-separated)")
 	sqlPtr := flag.String("sql-cmd", "", "SQL query text")
 	sqlfilePtr := flag.String("sql-file", "", "File with SQL command(s)")
 	labelsPtr := flag.String("labels", "", "Label columns (comma-separated). If not specified, all string columns will be used as labels.")
@@ -324,7 +338,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString, error) {
 	SQLSpliter := flag.String("SQLSpliter", "", "Delimiter for splitting multiple SQL commands")
 	masterOnlyPtr := flag.Bool("master-only", false, "Execute only on master")
 	replicaOnlyPtr := flag.Bool("replica-only", false, "Execute only on replica")
-	prefixMetric := flag.String("prefixMetric", "pgwatch", "Metric prefix")
+	prefixMetric := flag.String("prefixMetric", "", "Metric prefix")
 	jobsPtr := flag.Int("j", 1, "Max concurrent databases to process")
 
 	flag.Parse()
@@ -349,6 +363,15 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString, error) {
 		flagParam.ignoredColumns = make(map[string]bool)
 		for _, it := range strings.Split(*ignoredColumnsPtr, ",") {
 			flagParam.ignoredColumns[strings.TrimSpace(it)] = true
+		}
+	}
+	if *excludeDBPtr != "" {
+		flagParam.excludeDB = make(map[string]bool)
+		for _, it := range strings.Split(*excludeDBPtr, ",") {
+			dbName := strings.TrimSpace(it)
+			if dbName != "" {
+				flagParam.excludeDB[dbName] = true
+			}
 		}
 	}
 
@@ -380,9 +403,7 @@ func ParseFlags(build string) (*FlagParam, *ConnectionString, error) {
 
 	flagParam.masterOnly = *masterOnlyPtr
 	flagParam.replicaOnly = *replicaOnlyPtr
-	if *prefixMetric != "" {
-		flagParam.prefixMetric = *prefixMetric
-	}
+	flagParam.prefixMetric = *prefixMetric
 	if *jobsPtr <= 0 {
 		*jobsPtr = 1
 	}
