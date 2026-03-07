@@ -1,11 +1,10 @@
 # Deployment Guide
 
-## GitLab CI/CD Pipeline
+## GitHub Actions CI
 
-### Automated Build & Test
+### Automated Tests
 
-- **On Merge Request or master branch**: Runs tests (`make test` and `make test_telegraf`)
-- **On Git Tag**: Builds Docker image and pushes to GitLab Container Registry
+- **On Pull Request to `main`**: runs `make test` (unit tests) and `make test_telegraf` (full stack)
 
 ### Workflow
 
@@ -15,24 +14,22 @@ git checkout -b feature/my-changes
 git add .
 git commit -m "Add feature"
 git push -u origin feature/my-changes
-# → Create MR in GitLab → Tests run automatically
+# → Create PR on GitHub → Tests run automatically
 
-# 2. After MR merged, create release tag
-git checkout master
-git pull origin master
+# 2. After PR merged, create release tag
+git checkout main
+git pull origin main
 git tag v1.0.3
 git push origin v1.0.3
-# → Docker image builds and pushes automatically as:
-#    registry.gitlab.com/M69/database/utilities/pg_watcher/telegraf-pgwatcher:v1.0.0
-#    registry.gitlab.com/M69/database/utilities/pg_watcher/telegraf-pgwatcher:latest
 ```
 
 ---
 
 ## Test
+
 Some tests require Docker. You can use a completely free alternative on your laptop [rancherdesktop](https://rancherdesktop.io/).
 ```bash
-# Run all tests (unit + pg_watcher)
+# Run all tests (unit + pg_watcher + telegraf)
 make test_all
 
 # Run unit tests only (with race detection and coverage)
