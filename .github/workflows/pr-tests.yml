@@ -36,8 +36,8 @@ jobs:
 
       - name: Verify full stack test output
         run: |
-          if ! grep -q "pgwatch_" telegraf_output.log; then
-            echo "❌ Error: 'pgwatch_' metrics not found in test output"
+          if ! grep -q "tlf_" telegraf_output.log; then
+            echo "❌ Error: 'tlf_' metrics not found in test output"
             echo "Output was:"
             cat telegraf_output.log
             exit 1
