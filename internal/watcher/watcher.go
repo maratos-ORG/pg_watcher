@@ -280,7 +280,6 @@ func processDB(parentCtx context.Context, dbname string) error {
 						if !first {
 							lb.WriteByte(',')
 						}
-						// fmt.Fprintf(&lb, `%s="%s"`, m.label, labelVal(v))
 						fmt.Fprintf(&lb, `%s=%#v`, m.label, labelVal(v))
 						first = false
 						continue // do not duplicate as metric
@@ -290,7 +289,6 @@ func processDB(parentCtx context.Context, dbname string) error {
 						if !first {
 							lb.WriteByte(',')
 						}
-						// fmt.Fprintf(&lb, `%s="%s"`, m.label, labelVal(v))
 						fmt.Fprintf(&lb, `%s=%#v`, m.label, labelVal(v))
 						first = false
 						continue

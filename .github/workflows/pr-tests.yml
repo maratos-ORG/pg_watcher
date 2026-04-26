@@ -6,16 +6,13 @@ on:
       - main
 
 jobs:
-  test:
-    name: Run Tests
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -25,10 +22,28 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      - name: Run unit tests
+      - name: Run lint
+        run: make lint
+
+  test:
+    name: Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Unit tests
         run: make test
 
-      - name: Run full stack tests
+      - name: Integration test (pg_watcher + PostgreSQL)
+        run: make test_pg_watcher
+
+      - name: Full stack test (PostgreSQL + Telegraf)
         id: telegraf
         run: |
           set -o pipefail

@@ -16,6 +16,7 @@ LDFLAGS   := -s -w -X main.build=$(RELEASE)
 CGO_ENABLED ?= 0
 VERBOSE     ?=
 DOCKER_IMAGE ?= telegraf-pgwatcher
+GOLANGCI_LINT ?= $(shell which golangci-lint 2>/dev/null || echo $(shell go env GOPATH)/bin/golangci-lint)
 
 # ---- Tasks ------------------------------------------------------------------
 .PHONY: all build docker_build test test_pg_watcher test_telegraf test_all lint clean vars run tidy
@@ -115,8 +116,11 @@ test_all: test test_pg_watcher test_telegraf ## Run all tests (unit + pg_watcher
 
 lint: ## Run golangci-lint
 	@echo "==> lint"
-# 	@ run -c ./.golangci.yml --timeout 3m ./..golangci-lint.
-	@golangci-lint run -c ./.golangci.yml --timeout 3m ./...
+	@if ! command -v golangci-lint &>/dev/null && [ ! -f "$(GOLANGCI_LINT)" ]; then \
+		echo "==> installing golangci-lint"; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin; \
+	fi
+	@$(GOLANGCI_LINT) run -c ./.golangci.yml --timeout 3m ./...
 
 clean: ## Clean build artifacts
 	@echo "==> clean"

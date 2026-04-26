@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"testing"
@@ -176,7 +177,7 @@ func TestRunWithNilParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Run(nil, tt.fp, tt.cp)
+			err := Run(context.TODO(), tt.fp, tt.cp)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -219,7 +220,7 @@ func TestResolveDBListSpecific(t *testing.T) {
 				datname: tt.datnames,
 			}
 
-			result, err := resolveDBList(nil)
+			result, err := resolveDBList(context.TODO())
 			if err != nil {
 				t.Errorf("resolveDBList() unexpected error = %v", err)
 				return
