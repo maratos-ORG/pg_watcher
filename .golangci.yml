@@ -1,4 +1,5 @@
 # Linter config for golangci-lint (2025-ready)
+version: "2"
 
 run:
   concurrency: 4
